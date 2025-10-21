@@ -67,7 +67,11 @@ async def find_meeting_time(state: State, config: RunnableConfig):
     """Write an email to a customer."""
     model = config["configurable"].get("model", "gpt-4o")
     llm = ChatOpenAI(model=model, temperature=0)
-    agent = create_react_agent(llm, [get_events_for_days])
+    agent = create_react_agent(
+        llm, 
+        [get_events_for_days],
+        prompt=meeting_prompts # <--- ADDED THE PROMPT HERE
+    )
     current_date = datetime.now()
     prompt_config = get_config(config)
     input_message = meeting_prompts.format(
