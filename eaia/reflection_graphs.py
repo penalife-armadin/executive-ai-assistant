@@ -148,7 +148,7 @@ class MultiMemoryInput(MessagesState):
 
 
 async def determine_what_to_update(state: MultiMemoryInput):
-    reflection_model = ChatOpenAI(model="gpt-4-turbo", disable_streaming=True)
+    reflection_model = ChatOpenAI(model="gpt-4o-mini", disable_streaming=True)
     #reflection_model = ChatAnthropic(model="claude-3-5-sonnet-latest")
     trajectory = get_trajectory_clean(state["messages"])
     types_of_prompts = "\n".join(
