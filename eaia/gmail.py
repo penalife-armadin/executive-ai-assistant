@@ -152,7 +152,7 @@ def send_message(service, user_id, message):
     return message
 
 
-def send_email(
+async def send_email(
     email_id,
     response_text,
     email_address,
@@ -160,8 +160,8 @@ def send_email(
     gmail_secret: str | None = None,
     addn_receipients=None,
 ):
-    import asyncio
-    creds = asyncio.run(get_credentials(email_address))
+    """Send an email reply. Now async to work within LangGraph context."""
+    creds = await get_credentials(email_address)
 
     service = build("gmail", "v1", credentials=creds)
     message = service.users().messages().get(userId="me", id=email_id).execute()
@@ -196,9 +196,12 @@ async def fetch_group_emails(
     creds = await get_credentials(to_email)
 
     service = build("gmail", "v1", credentials=creds)
-    after = int((datetime.now() - timedelta(minutes=minutes_since)).timestamp())
+    
+    # Fix: Gmail's after: parameter expects YYYY/MM/DD format, not Unix timestamp
+    after_date = datetime.now() - timedelta(minutes=minutes_since)
+    after_str = after_date.strftime("%Y/%m/%d")
 
-    query = f"(to:{to_email} OR from:{to_email}) after:{after}"
+    query = f"(to:{to_email} OR from:{to_email}) after:{after_str}"
     messages = []
     nextPageToken = None
     # Fetch messages matching the query
@@ -230,21 +233,28 @@ async def fetch_group_emails(
             # Check the last message in the thread
             last_message = messages_in_thread[-1]
             last_headers = last_message["payload"]["headers"]
-            from_header = next(
-                header["value"] for header in last_headers if header["name"] == "From"
-            )
+            
             last_from_header = next(
                 header["value"]
-                for header in last_message["payload"].get("headers")
+                for header in last_headers
                 if header["name"] == "From"
             )
+            
+            # If the last message in thread was from the user, mark it as already responded
             if to_email in last_from_header:
                 yield {
                     "id": message["id"],
                     "thread_id": message["threadId"],
                     "user_respond": True,
                 }
-            # Check if the last message was from you and if the current message is the last in the thread
+                continue
+            
+            # Get the from header of the current message
+            from_header = next(
+                header["value"] for header in headers if header["name"] == "From"
+            )
+            
+            # Check if the current message is the last in the thread and not from user
             if to_email not in from_header and message["id"] == last_message["id"]:
                 subject = next(
                     header["value"] for header in headers if header["name"] == "Subject"
@@ -282,20 +292,20 @@ async def fetch_group_emails(
                     "send_time": parsed_time.isoformat(),
                 }
                 count += 1
-        except Exception:
-            logger.info(f"Failed on {message}")
+        except Exception as e:
+            logger.warning(f"Failed to process message {message.get('id', 'unknown')}: {e}")
 
     logger.info(f"Found {count} emails.")
 
 
-def mark_as_read(
+async def mark_as_read(
     message_id,
     user_email: str,
     gmail_token: str | None = None,
     gmail_secret: str | None = None,
 ):
-    import asyncio
-    creds = asyncio.run(get_credentials(user_email))
+    """Mark an email as read. Now async to work within LangGraph context."""
+    creds = await get_credentials(user_email)
 
     service = build("gmail", "v1", credentials=creds)
     service.users().messages().modify(
@@ -310,7 +320,7 @@ class CalInput(BaseModel):
 
 
 @tool(args_schema=CalInput)
-def get_events_for_days(date_strs: list[str]):
+async def get_events_for_days(date_strs: list[str]):
     """
     Retrieves events for a list of days. If you want to check for multiple days, call this with multiple inputs.
 
@@ -321,7 +331,6 @@ def get_events_for_days(date_strs: list[str]):
 
     Returns: availability for those days.
     """
-    import asyncio
     # Note: This function needs user_email from config - will be handled by calling code
     from .main.config import get_config
     from langchain_core.runnables.config import ensure_config
@@ -330,7 +339,7 @@ def get_events_for_days(date_strs: list[str]):
     user_config = get_config(config)
     user_email = user_config["email"]
     
-    creds = asyncio.run(get_credentials(user_email))
+    creds = await get_credentials(user_email)
     service = build("calendar", "v3", credentials=creds)
     results = ""
     for date_str in date_strs:
@@ -402,11 +411,14 @@ def print_events(events):
     return result
 
 
-def send_calendar_invite(
-    emails, title, start_time, end_time, email_address, timezone="PST"
+async def send_calendar_invite(
+    emails, title, start_time, end_time, email_address, timezone="US/Pacific"
 ):
-    import asyncio
-    creds = asyncio.run(get_credentials(email_address))
+    """Send a calendar invite. Now async to work within LangGraph context.
+    
+    Note: Changed default timezone from 'PST' to 'US/Pacific' for proper timezone handling.
+    """
+    creds = await get_credentials(email_address)
     service = build("calendar", "v3", credentials=creds)
 
     # Parse the start and end times
@@ -448,5 +460,5 @@ def send_calendar_invite(
         ).execute()
         return True
     except Exception as e:
-        logger.info(f"An error occurred while sending the calendar invite: {e}")
+        logger.error(f"An error occurred while sending the calendar invite: {e}")
         return False
