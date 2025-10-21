@@ -112,12 +112,13 @@ def enter_after_human(
                 raise ValueError
 
 
-def send_cal_invite_node(state, config):
+async def send_cal_invite_node(state, config):
+    """Send calendar invite node - now async."""
     tool_call = state["messages"][-1].tool_calls[0]
     _args = tool_call["args"]
     email = get_config(config)["email"]
     try:
-        send_calendar_invite(
+        await send_calendar_invite(
             _args["emails"],
             _args["title"],
             _args["start_time"],
@@ -130,14 +131,15 @@ def send_cal_invite_node(state, config):
     return {"messages": [ToolMessage(content=message, tool_call_id=tool_call["id"])]}
 
 
-def send_email_node(state, config):
+async def send_email_node(state, config):
+    """Send email node - now async."""
     tool_call = state["messages"][-1].tool_calls[0]
     _args = tool_call["args"]
     email = get_config(config)["email"]
     new_receipients = _args["new_recipients"]
     if isinstance(new_receipients, str):
         new_receipients = json.loads(new_receipients)
-    send_email(
+    await send_email(
         state["email"]["id"],
         _args["content"],
         email,
@@ -145,9 +147,10 @@ def send_email_node(state, config):
     )
 
 
-def mark_as_read_node(state, config):
+async def mark_as_read_node(state, config):
+    """Mark as read node - now async."""
     email = get_config(config)["email"]
-    mark_as_read(state["email"]["id"], email)
+    await mark_as_read(state["email"]["id"], email)
 
 
 def human_node(state: State):
