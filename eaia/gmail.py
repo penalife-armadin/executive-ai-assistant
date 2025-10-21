@@ -39,6 +39,9 @@ async def get_credentials(
         
     Returns:
         Google OAuth2 credentials
+        
+    Raises:
+        ValueError: If authentication is needed but not completed
     """
     api_key = langsmith_api_key or os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
     
@@ -57,26 +60,16 @@ async def get_credentials(
             user_id=user_email
         )
         
-        if auth_result.needs_auth:
-            print(f"Please visit: {auth_result.auth_url}")
-            print("Complete the OAuth flow and then retry.")
-            
-            # Wait for completion outside of LangGraph context
-            completed_result = await client.wait_for_completion(
-                auth_id=auth_result.auth_id,
-                timeout=300
-            )
-            token = completed_result.token
-        else:
-            token = auth_result.token
+        # The authenticate() call will automatically raise an interrupt if needs_auth is True
+        # LangGraph will catch this and show it in the UI
+        # When resumed, auth_result.token should be populated
         
-        if not token:
-            raise ValueError("Failed to obtain access token")
+        if not auth_result.token:
+            raise ValueError("Failed to obtain access token after authentication")
         
         # Create credentials object from the token
-        # langchain auth-client returns the access token as a string
         creds = Credentials(
-            token=token,
+            token=auth_result.token,
             scopes=_SCOPES
         )
         
