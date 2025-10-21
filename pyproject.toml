@@ -21,7 +21,7 @@ pyyaml = "*"
 python-dateutil = "^2.9.0.post0"
 python-dotenv = "^1.0.1"
 langgraph-cli = {extras = ["inmem"], version = "^0.3.6"}
-langgraph-api = "^0.2.134"
+langgraph-api = "^0.3.0"
 
 [tool.setuptools.packages.find]
 where = ["src"]
